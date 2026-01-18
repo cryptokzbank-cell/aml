@@ -1,4 +1,4 @@
-name: Build Android APK (Nuclear)
+name: Build Android APK (Stable)
 
 on:
   workflow_dispatch:
@@ -8,67 +8,76 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    env:
+      GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8"
+
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
+      # ✅ Node 20 (КРИТИЧНО)
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
+      # ✅ Java 17
       - name: Setup Java
         uses: actions/setup-java@v3
         with:
-          distribution: 'zulu'
-          java-version: '17'
+          distribution: zulu
+          java-version: 17
 
-      # 1. ГЕНЕРАЦИЯ ФАЙЛОВ (на случай, если их нет)
+      # 🔧 Генерация заглушек (OK)
       - name: Auto-generate missing files
         run: |
-          mkdir -p components
-          mkdir -p services
+          mkdir -p components services
           echo "export const audioService = { play: () => {} };" > services/audioService.ts
-          echo "import React from 'react'; export const Shop = ({ onBuy }: any) => <div className='p-4 text-white'>Shop</div>;" > components/Shop.tsx
-          echo "import React from 'react'; export const GameField = () => <div className='text-white p-4'>Game Field</div>;" > components/GameField.tsx
-          echo "import React from 'react'; export const Marketplace = () => <div className='text-white p-4'>Marketplace</div>;" > components/Marketplace.tsx
-          echo "import React from 'react'; export const Wallet = ({ onDeposit }: any) => <div className='text-white p-4'>Wallet</div>;" > components/Wallet.tsx
-          echo "import React from 'react'; export const Goals = () => <div className='text-white p-4'>Goals</div>;" > components/Goals.tsx
-          echo "import React from 'react'; export const Friends = () => <div className='text-white p-4'>Friends</div>;" > components/Friends.tsx
-          echo "import React from 'react'; export const Support = () => <div className='text-white p-4'>Support</div>;" > components/Support.tsx
+          echo "import React from 'react'; export const Shop = () => <div>Shop</div>;" > components/Shop.tsx
+          echo "import React from 'react'; export const GameField = () => <div>Game Field</div>;" > components/GameField.tsx
+          echo "import React from 'react'; export const Marketplace = () => <div>Marketplace</div>;" > components/Marketplace.tsx
+          echo "import React from 'react'; export const Wallet = () => <div>Wallet</div>;" > components/Wallet.tsx
+          echo "import React from 'react'; export const Goals = () => <div>Goals</div>;" > components/Goals.tsx
+          echo "import React from 'react'; export const Friends = () => <div>Friends</div>;" > components/Friends.tsx
+          echo "import React from 'react'; export const Support = () => <div>Support</div>;" > components/Support.tsx
 
-      - name: Install Dependencies
+      # 📦 Зависимости
+      - name: Install dependencies
         run: npm install
 
+      # 🏗 Web build
       - name: Build Web App
         run: npm run build
         env:
-           GEMINI_API_KEY: "placeholder"
+          GEMINI_API_KEY: placeholder
 
+      # ⚡ Capacitor (ЗАФИКСИРОВАННЫЕ ВЕРСИИ)
       - name: Setup Capacitor
         run: |
-          npm install @capacitor/core @capacitor/cli @capacitor/android
+          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
           npx cap init "Crypto Aul" "com.cryptoaul.game" --web-dir=dist
 
       - name: Add Android Platform
         run: npx cap add android
 
-      # 2. ОЧИСТКА ПОВРЕЖДЕННОГО КЭША (Исправление вашей ошибки)
-      - name: Clean Corrupted Cache
+      # 🧹 БЕЗОПАСНАЯ очистка (НЕ ЛОМАЕТ Gradle)
+      - name: Clean Gradle transforms cache
         run: |
-          rm -rf ~/.gradle/caches/jars-9
-          rm -rf ~/.gradle/caches/modules-2
-          echo "Cache cleared."
+          rm -rf ~/.gradle/caches/transforms-*
+          echo "Gradle transforms cache cleaned."
 
-      # 3. СБОРКА С МАКСИМАЛЬНОЙ НАДЕЖНОСТЬЮ
-      - name: Build APK (Nuclear)
+      # 🔨 Сборка APK
+      - name: Build APK
         run: |
           cd android
           chmod +x gradlew
-          # --no-daemon: стабильность
-          # --no-parallel: избегаем гонки потоков
-          # --refresh-dependencies: скачиваем заново, если что-то побилось
-          ./gradlew assembleDebug --no-daemon --no-parallel --refresh-dependencies
+          ./gradlew assembleDebug \
+            --no-daemon \
+            --no-parallel \
+            --refresh-dependencies \
+            --stacktrace
 
+      # 📤 Артефакт
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
